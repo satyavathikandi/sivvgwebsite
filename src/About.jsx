@@ -116,7 +116,7 @@ export default function AboutSection() {
             },
             {
               icon: <Shield className="text-purple-600 w-12 h-12" />,
-              title: "Safety",
+              title: "Assurance",
               text: "Smart risk awareness ensures stronger decisions and safer trading outcomes.",
             },
             {

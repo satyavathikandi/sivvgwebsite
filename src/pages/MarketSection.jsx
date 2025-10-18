@@ -23,8 +23,7 @@ export default function MarketSection() {
    // },
     Futures: {
       title: 'Futures Intraday Recommendation',
-      description: `At SIVVG, we provide clear and reliable Futures trading tips to help you 
-      make informed decisions in a fast-moving market.
+      description: `At SIVVG, we provide clear and reliable Futures trading tips to help you make informed decisions in a fast-moving market.
 We analyze price action, market direction and trading activity to identify potential opportunities.
 "Each tip comes with a clear target, giving you insight into the potential movement of the market.
 With SIVVG, Futures trading becomes reliable, and focused on helping you achieve results.`,
