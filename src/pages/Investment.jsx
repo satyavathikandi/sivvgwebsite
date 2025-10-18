@@ -16,7 +16,7 @@ const flipCards = [
     title: "Risk Management",
     icon: <ShieldCheck className="w-12 h-12 text-green-700" />,
     description:
-      "The process of identifying, assessing, and minimizing potential losses in trading or investment.",
+      "The process of identifying, assessing and minimizing potential losses in trading or investment.",
     frontColor: "from-green-100 to-green-200 text-green-700",
     backColor: "from-green-400 to-green-600 text-green-800",
     borderColor: "from-green-400 via-green-500 to-green-600",
