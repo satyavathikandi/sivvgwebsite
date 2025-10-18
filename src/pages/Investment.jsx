@@ -1,274 +1,181 @@
-// src/components/WeeklyPnLChart.jsx
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useState } from "react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  Legend,
-  Cell,
-} from "recharts";
-import * as XLSX from "xlsx";
-import { BsDownload } from "react-icons/bs";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import html2canvas from "html2canvas";
-import dataFile from "../assets/newportfoliodata.xlsx";
+  LineChart,
+  PiggyBank,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+} from "lucide-react";
+import TipsButton from "./TipsButton";
+import Triangledig from "./Triangledig";
 
-const WeeklyPnLChart = () => {
-  const [data, setData] = useState([]);
-  const [traders, setTraders] = useState([]);
-  const [mode, setMode] = useState("weekly");
-  const [selectedTrader, setSelectedTrader] = useState("");
-  const [selectedWeek, setSelectedWeek] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState("All Months");
-  const chartRef = useRef();
 
-  const monthMap = { September: 8, October: 9, November: 10 };
 
-  // Parse Excel date to JS Date object
-  const parseExcelDate = (date) => {
-    if (!date) return null;
-    if (typeof date === "number") return new Date(Math.round((date - 25569) * 86400 * 1000));
-    if (typeof date === "string") {
-      const parts = date.split(/[\/\-]/).map((v) => v.trim());
-      if (parts.length !== 3) return null;
-      let [d1, d2, d3] = parts;
-      let day, month;
-      if (parseInt(d1) > 12) {
-        day = d1;
-        month = d2;
-      } else {
-        day = d2;
-        month = d1;
-      }
-      const year = d3.length === 2 ? `20${d3}` : d3;
-      const parsed = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`);
-      return isNaN(parsed.getTime()) ? null : parsed;
-    }
-    return null;
-  };
+const flipCards = [
+  {
+    title: "Risk Management",
+    icon: <ShieldCheck className="w-12 h-12 text-green-700" />,
+    description:
+      "The process of identifying, assessing and minimizing potential losses in trading or investment.",
+    frontColor: "from-green-100 to-green-200 text-green-700",
+    backColor: "from-green-400 to-green-600 text-green-800",
+    borderColor: "from-green-400 via-green-500 to-green-600",
+  },
+  {
+    title: "Return Optimization",
+    icon: <TrendingUp className="w-12 h-12 text-yellow-700" />,
+    description:
+      "The strategy of maximizing investment gains while managing risk and resource allocation efficiently.",
+    frontColor: "from-yellow-100 to-yellow-200 text-yellow-700",
+    backColor: "from-yellow-400 to-yellow-600 text-yellow-800",
+    borderColor: "from-yellow-400 via-yellow-500 to-yellow-600",
+  },
+  {
+    title: "Goal-Based Planning",
+    icon: <Target className="w-12 h-12 text-blue-700" />,
+    description:
+      "This financial approach aligns investment strategies with clearly defined individual or organizational objectives.",
+    frontColor: "from-blue-100 to-blue-200 text-blue-700",
+    backColor: "from-blue-400 to-blue-600 text-blue-800",
+    borderColor: "from-blue-400 via-blue-500 to-blue-600",
+  },
+];
 
-  // Load Excel data
-  useEffect(() => {
-    fetch(dataFile)
-      .then((res) => res.arrayBuffer())
-      .then((buffer) => {
-        const workbook = XLSX.read(buffer, { type: "array" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        let jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true });
+const Investment = () => {
+  // Track flips only for mobile/touch devices
+  const [flipped, setFlipped] = useState(
+    new Array(flipCards.length).fill(false)
+  );
 
-        jsonData = jsonData.map((row) => {
-          const dateObj = parseExcelDate(row.Date);
-          return {
-            ...row,
-            Date: dateObj,
-            displayDate: dateObj
-              ? `${String(dateObj.getDate()).padStart(2, "0")}/${String(
-                  dateObj.getMonth() + 1
-                ).padStart(2, "0")}/${dateObj.getFullYear()}`
-              : row.Date,
-          };
-        });
-
-        const traderCols = Object.keys(jsonData[0] || {}).filter((key) =>
-          key.toLowerCase().includes("percentage")
-        );
-
-        setData(jsonData);
-        setTraders(traderCols);
-        setSelectedTrader(traderCols[0]);
-      })
-      .catch((err) => console.error(err));
-  }, []);
-
-  // Group data by 5 trading days
-  const getWeeks = (monthName) => {
-    const monthIndices =
-      monthName === "All Months" ? Object.values(monthMap) : [monthMap[monthName]];
-
-    const monthData = data
-      .filter((d) => d.Date && monthIndices.includes(d.Date.getMonth()))
-      .sort((a, b) => a.Date - b.Date);
-
-    const weeks = {};
-    let weekCounter = 1;
-    for (let i = 0; i < monthData.length; i += 5) {
-      weeks[`Week${weekCounter}`] = monthData.slice(i, i + 5);
-      weekCounter++;
-    }
-    return weeks;
-  };
-
-  // Aggregate data monthly
-  const getMonthlyAggregatedData = (monthName) => {
-    const monthIndices =
-      monthName === "All Months" ? Object.values(monthMap) : [monthMap[monthName]];
-
-    const allData = monthIndices.flatMap((idx) => {
-      const monthKey = Object.keys(monthMap).find((k) => monthMap[k] === idx);
-      const weeks = getWeeks(monthKey);
-      return Object.keys(weeks).map((wk) => {
-        const agg = { week: wk };
-        traders.forEach((t) => {
-          agg[t] = weeks[wk].reduce((sum, row) => sum + (row[t] || 0), 0);
-        });
-        return agg;
+  const toggleFlip = (idx) => {
+    // Only toggle on mobile view
+    if (window.innerWidth < 768) {
+      setFlipped((prev) => {
+        const copy = [...prev];
+        copy[idx] = !copy[idx];
+        return copy;
       });
-    });
-    return allData;
-  };
-
-  // Display data in chart
-  const displayedData = useMemo(() => {
-    if (!data.length || !selectedTrader) return [];
-    if (mode === "weekly") {
-      if (selectedWeek) return getWeeks(selectedMonth)[selectedWeek] || [];
-      return Object.values(getWeeks(selectedMonth)).flat();
-    }
-    if (mode === "monthly") return getMonthlyAggregatedData(selectedMonth);
-    return [];
-  }, [data, mode, selectedWeek, selectedMonth, selectedTrader]);
-
-  const totalSums = useMemo(() => {
-    const sums = {};
-    traders.forEach((t) => {
-      sums[t] = displayedData.reduce((acc, row) => acc + (row[t] || 0), 0);
-    });
-    return sums;
-  }, [displayedData, traders]);
-
-  // PDF Export
-  const handleDownloadPDF = async () => {
-    if (!selectedTrader) return alert("Select a trader first.");
-    try {
-      const doc = new jsPDF();
-      const traderName = selectedTrader.replace("Percentage", "");
-
-      doc.setFontSize(16);
-      doc.text("SIVVG Info Tech", 14, 15);
-      doc.setFontSize(13);
-      doc.text(`${traderName} - ${mode.toUpperCase()} Report (%)`, 14, 23);
-      doc.setFontSize(10);
-      doc.text(
-        `Month: ${selectedMonth}${selectedWeek ? ", Week: " + selectedWeek : ""} | Date: ${new Date().toLocaleDateString()}`,
-        14,
-        30
-      );
-
-      if (chartRef.current) {
-        const clone = chartRef.current.cloneNode(true);
-        clone.style.backgroundColor = "#0f172a";
-        document.body.appendChild(clone);
-        const canvas = await html2canvas(clone, { scale: 2 });
-        const imgData = canvas.toDataURL("image/png");
-        doc.addImage(imgData, "PNG", 14, 35, 180, 90);
-        document.body.removeChild(clone);
-      }
-
-      const tableData =
-        mode === "weekly"
-          ? displayedData.map((row) => [row.displayDate || row.week || "", `${row[selectedTrader]?.toFixed(2) || 0}%`])
-          : displayedData.map((row) => [row.week, `${row[selectedTrader]?.toFixed(2) || 0}%`]);
-
-      autoTable(doc, {
-        startY: 130,
-        head: [["Period", `${traderName} P&L (%)`]],
-        body: tableData,
-        theme: "grid",
-        headStyles: { fillColor: [22, 60, 150] },
-        styles: { fontSize: 10, halign: "center" },
-      });
-
-      const total = totalSums[selectedTrader]?.toFixed(2) || "0.00";
-      doc.text(`Total ${traderName} P&L (%): ${total >= 0 ? "+" + total : total}`, 14, doc.lastAutoTable.finalY + 10);
-
-      doc.save(`${traderName}_${mode}_${selectedMonth}${selectedWeek ? "_" + selectedWeek : ""}.pdf`);
-    } catch (err) {
-      console.error(err);
-      alert("PDF generation failed!");
     }
   };
-
-  const weekButtons = useMemo(() => Object.keys(getWeeks(selectedMonth)), [data, selectedMonth]);
 
   return (
-    <div className="w-full min-h-screen bg-[#0f172a] text-gray-100 py-8 px-3 sm:px-6 md:px-10">
-      <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6">📊 Portfolio P&L Dashboard</h2>
+    <div className="max-w-7xl mx-auto px-6 py-20  space-y-10">
+      {/* Heading */}
+      <div className="text-center">
+        <h2 className="text-2xl text-center sm:text-4xl md:text-5xl font-bold text-blue-800 mb-16">
+        <span className="bg-[#4b4d9c] bg-clip-text text-transparent">
+        Your Investment Strategy
+        </span>
+      </h2>
+        <p className="text-xl text-gray-600 -mt-10 ">
+          Choose the best options tailored to your financial goals.
+        </p>
+      </div>
 
-      {data.length > 0 ? (
-        <>
-          <div className="flex flex-wrap justify-center gap-2 mb-6">
-            <button onClick={() => { setMode("weekly"); setSelectedWeek(null); }}
-              className={`py-2 px-3 rounded ${mode === "weekly" ? "bg-green-600" : "bg-gray-800"} font-semibold`}>
-              Weekly
-            </button>
-            <button onClick={() => { setMode("monthly"); setSelectedWeek(null); }}
-              className={`py-2 px-3 rounded ${mode === "monthly" ? "bg-green-600" : "bg-gray-800"} font-semibold`}>
-              Monthly
-            </button>
+      <Triangledig />
 
-            <select value={selectedTrader} onChange={(e) => setSelectedTrader(e.target.value)}
-              className="bg-gray-800 text-white rounded px-3 py-2">
-              {traders.map((t) => <option key={t} value={t}>{t.replace("Percentage", "")}</option>)}
-            </select>
-
-            <select value={selectedMonth} onChange={(e) => { setSelectedMonth(e.target.value); setSelectedWeek(null); }}
-              className="bg-gray-800 text-white rounded px-3 py-2">
-              <option value="All Months">All Months</option>
-              <option value="September">September</option>
-              <option value="October">October</option>
-              <option value="November">November</option>
-            </select>
-          </div>
-
-          {mode === "weekly" && (
-            <div className="flex flex-wrap justify-center gap-2 mb-6">
-              <button onClick={() => setSelectedWeek(null)}
-                className={`py-1.5 px-3 rounded ${selectedWeek === null ? "bg-blue-600" : "bg-gray-700"}`}>
-                All Weeks
-              </button>
-              {weekButtons.map((wk) => (
-                <button key={wk} onClick={() => setSelectedWeek(wk)}
-                  className={`py-1.5 px-3 rounded ${selectedWeek === wk ? "bg-blue-600" : "bg-gray-700"}`}>
-                  {wk}
-                </button>
-              ))}
+      {/* Investment Types */}
+      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+        {investmentData.map((item, idx) => (
+          <div
+            key={idx}
+            className="bg-white p-10 rounded-2xl shadow-lg hover:shadow-2xl transition-transform hover:scale-105 border border-gray-200 hover:border-indigo-500"
+          >
+            <div className="flex items-center justify-center w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full mb-6">
+              {item.icon}
             </div>
-          )}
-
-          <div ref={chartRef} className="w-full h-72 sm:h-96 md:h-[500px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={displayedData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#555" />
-                <XAxis dataKey={mode === "weekly" ? "displayDate" : "week"} stroke="#eee" tick={{ fontSize: 10 }} />
-                <YAxis stroke="#eee" tickFormatter={(v) => `${v}%`} />
-                <Tooltip contentStyle={{ backgroundColor: "#333" }} />
-                <Legend wrapperStyle={{ color: "#fff" }} />
-                <Bar dataKey={selectedTrader} name={`${selectedTrader.replace("Percentage", "")} (%)`} radius={[4,4,0,0]}>
-                  {displayedData.map((entry, idx) => (
-                    <Cell key={idx} fill={entry[selectedTrader] >= 0 ? "#34d399" : "#f87171"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <h3 className="text-2xl font-semibold mb-4">{item.title}</h3>
+            <p className="text-lg text-gray-700">{item.description}</p>
           </div>
+        ))}
+      </div> */}
 
-          <div className="flex justify-center mt-6">
-            <button onClick={handleDownloadPDF}
-              className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-100 font-bold py-2 px-4 rounded">
-              <BsDownload size={18} /> Download PDF
-            </button>
+      {/* Flip Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3  -mt-24 gap-10 justify-items-center">
+  {flipCards.map((card, idx) => (
+    <div
+      key={idx}
+      className={`flip-card cursor-pointer w-82 h-62 ${
+        flipped[idx] ? "flipped" : ""
+      }`}
+      onClick={() => toggleFlip(idx)}
+    >
+      <div className="flip-inner relative w-full h-full">
+        {/* Front */}
+        <div className="flip-front absolute inset-0 backface-hidden">
+          <div
+            className={`relative w-full h-full rounded-2xl p-[2px] bg-gradient-to-r ${card.borderColor}`}
+          >
+            <div
+              className={`flex flex-col items-center justify-center w-full h-full rounded-2xl bg-gradient-to-br ${card.frontColor}`}
+            >
+              <div className="mb-3">{card.icon}</div>
+              <h3
+                className={`text-2xl font-semibold text-center ${
+                  card.title === "Risk Management"
+                    ? "text-green-700"
+                    : card.title === "Return Optimization"
+                    ? "text-yellow-700"
+                    : card.title === "Goal Based Planning"
+                    ? "text-blue-700"
+                    : "text-blue"
+                }`}
+              >
+                {card.title}
+              </h3>
+            </div>
           </div>
-        </>
-      ) : (
-        <p className="text-center mt-10">Loading data...</p>
-      )}
+        </div>
+
+        {/* Back */}
+        <div
+          className={`flip-back absolute inset-0 flex items-center justify-center rounded-2xl bg-gradient-to-br ${card.backColor} px-4 text-center backface-hidden`}
+        >
+          <p className="text-lg font-medium text-white">
+            {card.description}
+          </p>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
+
+
+      <TipsButton />
+
+      {/* Flip Animation Styles */}
+      <style>{`
+        .flip-card {
+          perspective: 1000px;
+        }
+        .flip-inner {
+          width: 100%;
+          height: 100%;
+          transition: transform 0.6s;
+          transform-style: preserve-3d;
+        }
+        /* Hover effect only applies on desktop (>= md) */
+        @media (min-width: 768px) {
+          .flip-card:hover .flip-inner {
+            transform: rotateY(180deg);
+          }
+        }
+        .flip-card.flipped .flip-inner {
+          transform: rotateY(180deg);
+        }
+        .backface-hidden {
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .flip-front {
+          transform: rotateY(0deg);
+        }
+        .flip-back {
+          transform: rotateY(180deg);
+        }
+      `}</style>
     </div>
   );
 };
 
-export default WeeklyPnLChart;
+export default Investment;
